@@ -6,7 +6,7 @@ int8_t run = 1;
 fedex pipe1(0, 0, 0, 0);
 exmem pipe2(0, 0, 0);
 
-void core()
+void core(uint8_t *imem, int8_t *dmem)
 {
     for (int i = 0; i < 32; i++)
         regFile[i] = 0;
@@ -16,13 +16,13 @@ void core()
 #pragma HLS ARRAY_PARTITION dim = 1 factor = 8 type = cyclic variable = dmem
     while (run)
     {
-        pipe1 = fedec();
+        pipe1 = fedec(imem);
         pipe2 = execute();
-        memwb();
+        memwb(dmem);
     }
 }
 
-fedex fedec()
+fedex fedec(uint8_t *imem)
 {
     uint32_t istn = imemectrl(PC, imem);
     int64_t rd = (istn >> 7) & 0x1F;
@@ -124,8 +124,6 @@ int64_t ALU(uint8_t ALUop, int64_t arg1, int64_t arg2)
         return arg1 + arg2;
     case 1:
         return arg1 << arg2;
-    case 2:
-        return arg1 - arg2;
     case 4:
         return arg1 ^ arg2;
     case 5:
@@ -136,13 +134,13 @@ int64_t ALU(uint8_t ALUop, int64_t arg1, int64_t arg2)
         return arg1 & arg2;
     case 8:
         return arg1 - arg2;
-    case 15:
+    case 13:
         return arg1 >> arg2;
     }
     return 0;
 }
 
-void memwb()
+void memwb(int8_t *dmem)
 {
     switch (pipe2.istn & 0x7F)
     {
@@ -151,42 +149,41 @@ void memwb()
         regFile[pipe2.src3] = pipe2.res;
         break;
     case 0b0000011:
-        // switch ((pipe2.istn >> 12) & 0x7)
-        // {
-        // case 0b000:
-        //     regFile[pipe2.src3] = dmem[pipe2.res];
-        //     (regFile[pipe2.src3] & 0x80) ? regFile[pipe2.src3] |= 0xFFFFFFFFFFFFFF00 : regFile[pipe2.src3] &= 0xFF;
-        //     break;
-        // case 0b001:
-        //     regFile[pipe2.src3] = dmem[pipe2.res] >> 8 | dmem[pipe2.res + 1];
-        //     (regFile[pipe2.src3] & 0x8000) ? regFile[pipe2.src3] |= 0xFFFFFFFFFFFF0000 : regFile[pipe2.src3] &= 0xFFFF;
-        //     break;
-        // case 0b010:
-        //     regFile[pipe2.src3] = dmem[pipe2.res] >> 24 | dmem[pipe2.res + 1] >> 16 | dmem[pipe2.res + 2] >> 8 | dmem[pipe2.res + 3];
-        //     (regFile[pipe2.src3] & 0x80000000) ? regFile[pipe2.src3] |= 0xFFFFFFFF00000000 : regFile[pipe2.src3] &= 0xFFFFFFFF;
-        //     break;
-        // case 0b011:
-        //     regFile[pipe2.src3] = (int64_t)dmem[pipe2.res] >> 56 | (int64_t)dmem[pipe2.res + 1] >> 48 | (int64_t)dmem[pipe2.res + 2] >> 40 | (int64_t)dmem[pipe2.res + 3] >> 32 | dmem[pipe2.res + 4] >> 24 | dmem[pipe2.res + 5] >> 16 | dmem[pipe2.res + 6] >> 8 | dmem[pipe2.res + 7];
-        //     break;
-        // case 0b100:
-        //     regFile[pipe2.src3] = dmem[pipe2.res];
-        //     regFile[pipe2.src3] &= 0xFF;
-        //     break;
-        // case 0b101:
-        //     regFile[pipe2.src3] = dmem[pipe2.res] >> 8 | dmem[pipe2.res + 1];
-        //     regFile[pipe2.src3] &= 0xFFFF;
-        //     break;
-        // case 0b110:
-        //     regFile[pipe2.src3] = dmem[pipe2.res] >> 24 | dmem[pipe2.res + 1] >> 16 | dmem[pipe2.res + 2] >> 8 | dmem[pipe2.res + 3];
-        //     regFile[pipe2.src3] &= 0xFFFFFFFF;
-        //     break;
-        // }
-        // break;
-        regFile[pipe2.src3] = (pipe2.res, dmem, 0, 0, (pipe2.istn >> 12) & 0x7);
-    case 0b0100011:
-        dmemctrl(pipe2.res, dmem, pipe2.src3, 1, (pipe2.istn >> 12) & 0x7);
+        switch ((pipe2.istn >> 12) & 0x7)
+        {
+        case 0b000:
+            regFile[pipe2.src3] = dmemctrl(pipe2.res, dmem, 0, 0, 1);
+            (regFile[pipe2.src3] & 0x80) ? regFile[pipe2.src3] |= 0xFFFFFFFFFFFFFF00 : regFile[pipe2.src3] &= 0xFF;
+            break;
+        case 0b001:
+            regFile[pipe2.src3] = dmemctrl(pipe2.res, dmem, 0, 0, 2);
+            (regFile[pipe2.src3] & 0x8000) ? regFile[pipe2.src3] |= 0xFFFFFFFFFFFF0000 : regFile[pipe2.src3] &= 0xFFFF;
+            break;
+        case 0b010:
+            regFile[pipe2.src3] = dmemctrl(pipe2.res, dmem, 0, 0, 4);
+            (regFile[pipe2.src3] & 0x80000000) ? regFile[pipe2.src3] |= 0xFFFFFFFF00000000 : regFile[pipe2.src3] &= 0xFFFFFFFF;
+            break;
+        case 0b011:
+            regFile[pipe2.src3] = dmemctrl(pipe2.res, dmem, 0, 0, 8);
+            break;
+        case 0b100:
+            regFile[pipe2.src3] = dmemctrl(pipe2.res, dmem, 0, 0, 1);
+            regFile[pipe2.src3] &= 0xFF;
+            break;
+        case 0b101:
+            regFile[pipe2.src3] = dmemctrl(pipe2.res, dmem, 0, 0, 2);
+            regFile[pipe2.src3] &= 0xFFFF;
+            break;
+        case 0b110:
+            regFile[pipe2.src3] = dmemctrl(pipe2.res, dmem, 0, 0, 4);
+            regFile[pipe2.src3] &= 0xFFFFFFFF;
+            break;
+        }
+        break;
     case 0b1100011:
         PC = pipe2.res;
+    case 0b0100011:
+        dmemctrl(pipe2.res, dmem, pipe2.src3, 1, (pipe2.istn >> 12) & 0x7);
         break;
     case 0b1101111:
     case 0b1100111:
@@ -240,12 +237,13 @@ int64_t dmemctrl(uint32_t addr, int8_t *dmem, int64_t data, uint8_t we, uint8_t 
         {
         case 0b00000001:
             return dmem[addr];
-        case 0b00000011:
-            return dmem[addr] | dmem[addr + 1] << 8;
-        case 0b00001111:
-            return dmem[addr] | dmem[addr + 1] << 8 | dmem[addr + 2] << 16 | dmem[addr + 3] << 24;
-        case 0b11111111:
-            return dmem[addr] | dmem[addr + 1] << 8 | dmem[addr + 2] << 16 | dmem[addr + 3] << 24 | dmem[addr + 4] << 32 | dmem[addr + 5] << 40 | dmem[addr + 6] << 48 | dmem[addr + 7] << 56;
+        case 0b00000010:
+            return (int64_t)dmem[addr] | (int64_t)dmem[addr + 1] << 8;
+        case 0b00001000:
+            return (int64_t)dmem[addr] | (int64_t)dmem[addr + 1] << 8 | (int64_t)dmem[addr + 2] << 16 | (int64_t)dmem[addr + 3] << 24;
+        case 0b10000000:
+            return (int64_t)dmem[addr] | (int64_t)dmem[addr + 1] << 8 | (int64_t)dmem[addr + 2] << 16 | (int64_t)dmem[addr + 3] << 24 | (int64_t)dmem[addr + 4] << 32 | (int64_t)dmem[addr + 5] << 40 | (int64_t)dmem[addr + 6] << 48 | (int64_t)dmem[addr + 7] << 56;
         }
+        return 0;
     }
 }

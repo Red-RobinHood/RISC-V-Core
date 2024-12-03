@@ -4,6 +4,9 @@
 #include <iostream>
 #include <fstream>
 
+#define IMEM_SIZE 1024
+#define DMEM_SIZE 1024
+
 using namespace std;
 
 int main()
@@ -20,10 +23,6 @@ int main()
         i++;
     }
     input.close();
-    core(imem, dmem);
-    cout << (int64_t)dmem[0] << endl;
-    cout << (int64_t)dmem[1] << endl;
-    cout << (int64_t)dmem[2] << endl;
-    cout << (int64_t)dmem[3] << endl;
+    core(&imem[0], &dmem[0]);
     return 0;
 }
