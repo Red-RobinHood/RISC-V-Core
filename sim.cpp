@@ -1,5 +1,7 @@
 #include "sim.hpp"
 
+using namespace std;
+
 int64_t regFile[32];
 uint64_t PC = 0;
 int8_t run = 1;
@@ -38,11 +40,11 @@ fedex fedec(uint8_t *imem)
     case 0b0000011:
     case 0b1100111:
         imm = istn >> 20;
-        imm |= (imm & 0x100) ? 0xFFFFFFFFFFFFF000 : 0;
+        imm |= (imm & 0x800) ? 0xFFFFFFFFFFFFF000 : 0;
         return fedex(istn, rs1, imm, rd);
     case 0b0100011:
         imm = (istn >> 25) << 5 | (istn >> 7) & 0x1F;
-        imm |= (imm & 0x100) ? 0xFFFFFFFFFFFFF000 : 0;
+        imm |= (imm & 0x800) ? 0xFFFFFFFFFFFFF000 : 0;
         return fedex(istn, rs1, imm, rs2);
     case 0b1100011:
         imm = (((istn >> 31) << 12) | (((istn >> 7) & 0x1) << 11) | (((istn >> 25) & 0x3F) << 5) | ((istn >> 8) & 0xF) << 1);
@@ -50,33 +52,33 @@ fedex fedec(uint8_t *imem)
         switch ((istn >> 12) & 0x7)
         {
         case 0b000:
-            if (regFile[rs1] == regFile[rs2])
+            if (rs1 == rs2)
                 return fedex(istn, (int64_t)PC - 4, imm, 0);
             break;
         case 0b001:
-            if (regFile[rs1] != regFile[rs2])
+
+            if (rs1 != rs2)
                 return fedex(istn, (int64_t)PC - 4, imm, 0);
             break;
         case 0b100:
-            if (regFile[rs1] < regFile[rs2])
+            if (rs1 < rs2)
                 return fedex(istn, (int64_t)PC - 4, imm, 0);
             break;
         case 0b101:
-            if (regFile[rs1] >= regFile[rs2])
+            if (rs1 >= rs2)
                 return fedex(istn, (int64_t)PC - 4, imm, 0);
             break;
         case 0b110:
-            if (static_cast<uint64_t>(regFile[rs1]) < static_cast<uint64_t>(regFile[rs2]))
+            if (static_cast<uint64_t>(rs1) < static_cast<uint64_t>(rs2))
                 return fedex(istn, (int64_t)PC - 4, imm, 0);
             break;
         case 0b111:
-            if (static_cast<uint64_t>(regFile[rs1]) >= static_cast<uint64_t>(regFile[rs2]))
+            if (static_cast<uint64_t>(rs1) >= static_cast<uint64_t>(rs2))
                 return fedex(istn, (int64_t)PC - 4, imm, 0);
             break;
         }
         return fedex(istn, (int64_t)PC, 0, 0);
     case 0b1101111:
-        rd = regFile[rd];
         imm = (((istn >> 31) << 20) | (((istn >> 12) & 0xFF) << 12) | (((istn >> 20) & 0x1) << 11) | ((istn >> 21) & 0x3FF) << 1);
         imm |= (imm & 0x100000) ? 0xFFFFFFFFFFE00000 : 0;
         return fedex(istn, (int64_t)PC - 4, imm, rd);
@@ -113,6 +115,8 @@ exmem execute()
         ALUop = 0;
         break;
     }
+    if (ALUop == 0x5)
+        ALUop = ((pipe1.istn >> 12) & 0x7) | ((pipe1.istn >> 27) & 0x8);
     return exmem(istn, ALU(ALUop, pipe1.src1, pipe1.src2), pipe1.src3);
 }
 
@@ -205,20 +209,20 @@ int64_t dmemctrl(uint32_t addr, int8_t *dmem, int64_t data, uint8_t we, uint8_t 
     {
         switch (sz)
         {
-        case 0b00000001:
+        case 0b00000000:
             dmem[addr] = data & 0xFF;
             break;
-        case 0b00000011:
+        case 0b00000001:
             dmem[addr] = data & 0xFF;
             dmem[addr + 1] = data >> 8 & 0xFF;
             break;
-        case 0b00001111:
+        case 0b00000010:
             dmem[addr] = data & 0xFF;
             dmem[addr + 1] = data >> 8 & 0xFF;
             dmem[addr + 2] = data >> 16 & 0xFF;
             dmem[addr + 3] = data >> 24 & 0xFF;
             break;
-        case 0b11111111:
+        case 0b00000011:
             dmem[addr] = data & 0xFF;
             dmem[addr + 1] = data >> 8 & 0xFF;
             dmem[addr + 2] = data >> 16 & 0xFF;
@@ -239,9 +243,9 @@ int64_t dmemctrl(uint32_t addr, int8_t *dmem, int64_t data, uint8_t we, uint8_t 
             return dmem[addr];
         case 0b00000010:
             return (int64_t)dmem[addr] | (int64_t)dmem[addr + 1] << 8;
-        case 0b00001000:
+        case 0b00000100:
             return (int64_t)dmem[addr] | (int64_t)dmem[addr + 1] << 8 | (int64_t)dmem[addr + 2] << 16 | (int64_t)dmem[addr + 3] << 24;
-        case 0b10000000:
+        case 0b00001000:
             return (int64_t)dmem[addr] | (int64_t)dmem[addr + 1] << 8 | (int64_t)dmem[addr + 2] << 16 | (int64_t)dmem[addr + 3] << 24 | (int64_t)dmem[addr + 4] << 32 | (int64_t)dmem[addr + 5] << 40 | (int64_t)dmem[addr + 6] << 48 | (int64_t)dmem[addr + 7] << 56;
         }
         return 0;
