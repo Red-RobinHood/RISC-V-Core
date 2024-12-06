@@ -12,12 +12,12 @@ void core(uint8_t *imem, int8_t *dmem)
 {
     for (int i = 0; i < 32; i++)
         regFile[i] = 0;
-#pragma HLS PIPELINE
 #pragma HLS ARRAY_PARTITION dim = 1 factor = 32 type = cyclic variable = regFile
-#pragma HLS ARRAY_PARTITION dim = 1 factor = 4 type = cyclic variable = imem
-#pragma HLS ARRAY_PARTITION dim = 1 factor = 8 type = cyclic variable = dmem
+#pragma HLS INTERFACE mode=bram port=dmem
+#pragma HLS INTERFACE mode=bram port=imem
     while (run)
     {
+#pragma HLS PIPELINE
         pipe1 = fedec(imem);
         pipe2 = execute();
         memwb(dmem);
@@ -122,6 +122,7 @@ exmem execute()
 
 int64_t ALU(uint8_t ALUop, int64_t arg1, int64_t arg2)
 {
+#pragma HLS INLINE
     switch (ALUop)
     {
     case 0:
@@ -200,11 +201,13 @@ void memwb(int8_t *dmem)
 
 int32_t imemectrl(uint32_t pc, uint8_t *imem)
 {
+#pragma HLS INLINE off
     return imem[pc] | (imem[pc + 1] << 8) | (imem[pc + 2] << 16) | (imem[pc + 3] << 24);
 }
 
 int64_t dmemctrl(uint32_t addr, int8_t *dmem, int64_t data, uint8_t we, uint8_t sz)
 {
+#pragma HLS INLINE off
     if (we)
     {
         switch (sz)
