@@ -187,6 +187,7 @@ void memwb(int8_t *dmem)
         break;
     case 0b1100011:
         PC = pipe2.res;
+        break;
     case 0b0100011:
         dmemctrl(pipe2.res, dmem, pipe2.src3, 1, (pipe2.istn >> 12) & 0x7);
         break;
